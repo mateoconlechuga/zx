@@ -23,15 +23,20 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#ifndef ZX7_H
+#define ZX7_H
+
 #define MAX_OFFSET  2176  /* range 1..2176 */
 #define MAX_LEN    65536  /* range 2..65536 */
 
-typedef struct optimal_t {
+typedef struct zx7_optimal_t {
     size_t bits;
     int offset;
     int len;
-} Optimal;
+} zx7_Optimal;
 
-Optimal *optimize(unsigned char *input_data, size_t input_size, unsigned long skip);
+zx7_Optimal *zx7_optimize(unsigned char *input_data, size_t input_size, unsigned long skip);
 
-unsigned char *compress(Optimal *optimal, unsigned char *input_data, size_t input_size, unsigned long skip, size_t *output_size, long *delta);
+unsigned char *zx7_compress(zx7_Optimal *optimal, unsigned char *input_data, size_t input_size, unsigned long skip, size_t *output_size, long *delta);
+
+#endif

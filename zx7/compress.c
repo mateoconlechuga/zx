@@ -28,24 +28,24 @@
 
 #include "zx7.h"
 
-unsigned char* output_data;
-size_t output_index;
-size_t bit_index;
-int bit_mask;
-long diff;
+static unsigned char* output_data;
+static size_t output_index;
+static size_t bit_index;
+static int bit_mask;
+static long diff;
 
-void read_bytes(int n, long *delta) {
+static void read_bytes(int n, long *delta) {
    diff += n;
    if (diff > *delta)
        *delta = diff;
 }
 
-void write_byte(int value) {
+static void write_byte(int value) {
     output_data[output_index++] = value;
     diff--;
 }
 
-void write_bit(int value) {
+static void write_bit(int value) {
     if (bit_mask == 0) {
         bit_mask = 128;
         bit_index = output_index;
@@ -57,7 +57,7 @@ void write_bit(int value) {
     bit_mask >>= 1;
 }
 
-void write_elias_gamma(int value) {
+static void write_elias_gamma(int value) {
     int i;
 
     for (i = 2; i <= value; i <<= 1) {
@@ -68,7 +68,7 @@ void write_elias_gamma(int value) {
     }
 }
 
-unsigned char *compress(Optimal *optimal, unsigned char *input_data, size_t input_size, unsigned long skip, size_t *output_size, long *delta) {
+unsigned char *zx7_compress(zx7_Optimal *optimal, unsigned char *input_data, size_t input_size, unsigned long skip, size_t *output_size, long *delta) {
     size_t input_index;
     int offset1;
     int mask;

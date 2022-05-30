@@ -23,24 +23,27 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#ifndef ZX0_H
+#define ZX0_H
+
+#define ZX0_MAX_OFFSET 32640
+
 #define INITIAL_OFFSET 1
 
 #define FALSE 0
 #define TRUE 1
 
-typedef struct block_t {
-    struct block_t *chain;
-    struct block_t *ghost_chain;
+typedef struct zx0_block_t {
+    struct zx0_block_t *chain;
+    struct zx0_block_t *ghost_chain;
     int bits;
     int index;
     int offset;
     int references;
-} BLOCK;
+} zx0_BLOCK;
 
-BLOCK *allocate(int bits, int index, int offset, BLOCK *chain);
+zx0_BLOCK *zx0_optimize(unsigned char *input_data, int input_size, int skip, int offset_limit, void (*progress)(void));
 
-void assign(BLOCK **ptr, BLOCK *chain);
+unsigned char *zx0_compress(zx0_BLOCK *optimal, unsigned char *input_data, int input_size, int skip, int backwards_mode, int invert_mode, int *output_size, int *delta);
 
-BLOCK *optimize(unsigned char *input_data, int input_size, int skip, int offset_limit);
-
-unsigned char *compress(BLOCK *optimal, unsigned char *input_data, int input_size, int skip, int backwards_mode, int invert_mode, int *output_size, int *delta);
+#endif

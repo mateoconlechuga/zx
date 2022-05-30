@@ -28,27 +28,27 @@
 
 #include "zx0.h"
 
-unsigned char* output_data;
-int output_index;
-int input_index;
-int bit_index;
-int bit_mask;
-int diff;
-int backtrack;
+static unsigned char* output_data;
+static int output_index;
+static int input_index;
+static int bit_index;
+static int bit_mask;
+static int diff;
+static int backtrack;
 
-void read_bytes(int n, int *delta) {
+static void read_bytes(int n, int *delta) {
     input_index += n;
     diff += n;
     if (*delta < diff)
         *delta = diff;
 }
 
-void write_byte(int value) {
+static void write_byte(int value) {
     output_data[output_index++] = value;
     diff--;
 }
 
-void write_bit(int value) {
+static void write_bit(int value) {
     if (backtrack) {
         if (value)
             output_data[output_index-1] |= 1;
@@ -65,7 +65,7 @@ void write_bit(int value) {
     }
 }
 
-void write_interlaced_elias_gamma(int value, int backwards_mode, int invert_mode) {
+static void write_interlaced_elias_gamma(int value, int backwards_mode, int invert_mode) {
     int i;
 
     for (i = 2; i <= value; i <<= 1)
@@ -78,19 +78,22 @@ void write_interlaced_elias_gamma(int value, int backwards_mode, int invert_mode
     write_bit(!backwards_mode);
 }
 
-unsigned char *compress(BLOCK *optimal, unsigned char *input_data, int input_size, int skip, int backwards_mode, int invert_mode, int *output_size, int *delta) {
-    BLOCK *prev;
-    BLOCK *next;
+unsigned char *zx0_compress(zx0_BLOCK *optimal, unsigned char *input_data, int input_size, int skip, int backwards_mode, int invert_mode, int *output_size, int *delta) {
+    zx0_BLOCK *prev;
+    zx0_BLOCK *next;
     int last_offset = INITIAL_OFFSET;
     int length;
     int i;
+
+    if (!optimal) {
+        return NULL;
+    }
 
     /* calculate and allocate output buffer */
     *output_size = (optimal->bits+25)/8;
     output_data = (unsigned char *)malloc(*output_size);
     if (!output_data) {
-         fprintf(stderr, "Error: Insufficient memory\n");
-         exit(1);
+        return NULL;
     }
 
     /* un-reverse optimal sequence */

@@ -34,12 +34,12 @@ static int count_bits(int offset, int len) {
     return (((sizeof(int)*CHAR_BIT+4) - __builtin_clz(len-1)) << 1) + ((128 - offset) >> (sizeof(int)*CHAR_BIT-1) & 4);
 }
 
-Optimal* optimize(unsigned char *input_data, size_t input_size, unsigned long skip) {
+zx7_Optimal* zx7_optimize(unsigned char *input_data, size_t input_size, unsigned long skip) {
     static size_t min[MAX_OFFSET+1];
     static size_t max[MAX_OFFSET+1];
     static size_t matches[256*256];
     size_t *match_slots = NULL;
-    Optimal *optimal = NULL;
+    zx7_Optimal *optimal = NULL;
     size_t *match;
     int match_index;
     int offset;
@@ -57,7 +57,7 @@ Optimal* optimize(unsigned char *input_data, size_t input_size, unsigned long sk
         return NULL;
     }
 
-    optimal = calloc(input_size, sizeof(Optimal));
+    optimal = calloc(input_size, sizeof(zx7_Optimal));
     if (optimal == NULL) {
         goto free_match_slots;
     }
