@@ -25,6 +25,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <setjmp.h>
 
 #include "zx0.h"
 
@@ -41,11 +43,17 @@ static int elias_gamma_bits(int value) {
     return bits;
 }
 
-#define QTY_zx0_BLOCKS 10000
+#define QTY_BLOCKS 10000
+#define MAX_ALLOCS 10000
 
-static zx0_BLOCK *ghost_root = NULL;
-static zx0_BLOCK *dead_array = NULL;
-static int dead_array_size = 0;
+static zx0_BLOCK *ghost_root;
+static zx0_BLOCK *dead_array;
+static int dead_array_size;
+
+static void *allocated_mem[MAX_ALLOCS];
+static size_t nr_allocs;
+
+static jmp_buf jmp_err;
 
 static zx0_BLOCK *zx0_allocate(int bits, int index, int offset, zx0_BLOCK *chain) {
     zx0_BLOCK *ptr;
@@ -59,12 +67,16 @@ static zx0_BLOCK *zx0_allocate(int bits, int index, int offset, zx0_BLOCK *chain
         }
     } else {
         if (!dead_array_size) {
-            dead_array = (zx0_BLOCK *)malloc(QTY_zx0_BLOCKS*sizeof(zx0_BLOCK));
-            if (!dead_array) {
-                fprintf(stderr, "Error: Insufficient memory\n");
-                exit(1);
+            if (nr_allocs == MAX_ALLOCS) {
+                longjmp(jmp_err, 1);
             }
-            dead_array_size = QTY_zx0_BLOCKS;
+            dead_array = malloc(QTY_BLOCKS * sizeof(zx0_BLOCK));
+            if (dead_array == NULL) {
+                longjmp(jmp_err, 1);
+            }
+            allocated_mem[nr_allocs] = dead_array;
+            nr_allocs++;
+            dead_array_size = QTY_BLOCKS;
         }
         ptr = &dead_array[--dead_array_size];
     }
@@ -87,12 +99,28 @@ static void zx0_assign(zx0_BLOCK **ptr, zx0_BLOCK *chain) {
     *ptr = chain;
 }
 
-zx0_BLOCK* zx0_optimize(unsigned char *input_data, int input_size, int skip, int offset_limit, void (*progress)(void)) {
-    zx0_BLOCK **last_literal;
-    zx0_BLOCK **last_match;
-    zx0_BLOCK **optimal;
-    int* match_length;
-    int* best_length;
+static zx0_BLOCK **optimal = NULL;
+static int *best_length = NULL;
+
+void zx0_free(void)
+{
+    for (size_t i = 0; i < nr_allocs; ++i) {
+        free(allocated_mem[i]);
+        allocated_mem[i] = NULL;
+    }
+    nr_allocs = 0;
+
+    free(optimal);
+    optimal = NULL;
+    free(best_length);
+    best_length = NULL;
+}
+
+zx0_BLOCK *zx0_optimize(unsigned char *input_data, int input_size, int skip, int offset_limit, void (*progress)(void))
+{
+    static zx0_BLOCK *last_literal[ZX0_MAX_OFFSET];
+    static zx0_BLOCK *last_match[ZX0_MAX_OFFSET];
+    static int match_length[ZX0_MAX_OFFSET];
     int best_length_size;
     int bits;
     int index;
@@ -100,19 +128,38 @@ zx0_BLOCK* zx0_optimize(unsigned char *input_data, int input_size, int skip, int
     int length;
     int bits2;
     int dots = 2;
-    int max_offset = offset_ceiling(input_size-1, offset_limit);
+    int max_offset;
 
-    /* zx0_allocate all main data structures at once */
-    last_literal = (zx0_BLOCK **)calloc(max_offset+1, sizeof(zx0_BLOCK *));
-    last_match = (zx0_BLOCK **)calloc(max_offset+1, sizeof(zx0_BLOCK *));
-    optimal = (zx0_BLOCK **)calloc(input_size, sizeof(zx0_BLOCK *));
-    match_length = (int *)calloc(max_offset+1, sizeof(int));
-    best_length = (int *)malloc(input_size*sizeof(int));
-    if (!last_literal || !last_match || !optimal || !match_length || !best_length) {
+    if (setjmp(jmp_err))
+    {
         return NULL;
     }
+
+    memset(last_literal, 0, sizeof last_literal);
+    memset(last_match, 0, sizeof last_match);
+    memset(match_length, 0, sizeof match_length);
+
+    nr_allocs = 0;
+    ghost_root = NULL;
+    dead_array = NULL;
+    dead_array_size = 0;
+
+    best_length = malloc(input_size * sizeof(int));
+    if (best_length == NULL)
+    {
+        return NULL;
+    }
+
+    optimal = calloc(input_size, sizeof(zx0_BLOCK *));
+    if (optimal == NULL)
+    {
+        return NULL;
+    }
+
     if (input_size > 2)
+    {
         best_length[2] = 2;
+    }
 
     /* start with fake block */
     zx0_assign(&last_match[INITIAL_OFFSET], zx0_allocate(-1, skip-1, INITIAL_OFFSET, NULL));
@@ -168,7 +215,8 @@ zx0_BLOCK* zx0_optimize(unsigned char *input_data, int input_size, int skip, int
         }
 
         /* indicate progress */
-        if (index*MAX_SCALE/input_size > dots) {
+        if (((index * MAX_SCALE) / input_size) > dots)
+        {
             progress();
             dots++;
         }
