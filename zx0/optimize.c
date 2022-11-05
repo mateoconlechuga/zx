@@ -104,7 +104,9 @@ static int *best_length = NULL;
 
 void zx0_free(void)
 {
-    for (size_t i = 0; i < nr_allocs; ++i) {
+    size_t i;
+
+    for (i = 0; i < nr_allocs; ++i) {
         free(allocated_mem[i]);
         allocated_mem[i] = NULL;
     }
