@@ -77,7 +77,7 @@ unsigned char *zx7_compress(zx7_Optimal *optimal, unsigned char *input_data, siz
     /* calculate and allocate output buffer */
     input_index = input_size-1;
     *output_size = (optimal[input_index].bits+18+7)/8;
-    output_data = malloc(*output_size);
+    output_data = calloc(*output_size, sizeof(unsigned char));
     if (!output_data) {
          return NULL;
     }

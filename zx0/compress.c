@@ -91,7 +91,7 @@ unsigned char *zx0_compress(zx0_BLOCK *optimal, unsigned char *input_data, int i
 
     /* calculate and allocate output buffer */
     *output_size = (optimal->bits+25)/8;
-    output_data = (unsigned char *)malloc(*output_size);
+    output_data = calloc(*output_size, sizeof(unsigned char));
     if (!output_data) {
         return NULL;
     }
