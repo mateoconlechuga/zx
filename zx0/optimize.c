@@ -120,9 +120,9 @@ void zx0_free(void)
 
 zx0_BLOCK *zx0_optimize(unsigned char *input_data, int input_size, int skip, int offset_limit, void (*progress)(void))
 {
-    static zx0_BLOCK *last_literal[ZX0_MAX_OFFSET];
-    static zx0_BLOCK *last_match[ZX0_MAX_OFFSET];
-    static int match_length[ZX0_MAX_OFFSET];
+    static zx0_BLOCK *last_literal[ZX0_MAX_OFFSET+1];
+    static zx0_BLOCK *last_match[ZX0_MAX_OFFSET+1];
+    static int match_length[ZX0_MAX_OFFSET+1];
     int best_length_size;
     int bits;
     int index;
