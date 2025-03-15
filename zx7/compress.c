@@ -23,56 +23,62 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "zx7.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "zx7.h"
+#define read_bytes(n, delta) \
+do { \
+   diff += n; \
+   if (diff > delta) \
+       delta = diff; \
+} while (0)
 
-static unsigned char* output_data;
-static size_t output_index;
-static size_t bit_index;
-static int bit_mask;
-static long diff;
+#define write_byte(v) \
+do { \
+    int value = v; \
+    output_data[output_index++] = value; \
+    diff--; \
+} while (0)
 
-static void read_bytes(int n, long *delta) {
-   diff += n;
-   if (diff > *delta)
-       *delta = diff;
-}
+#define write_bit(v) \
+do { \
+    int value = v; \
+    if (bit_mask == 0) { \
+        bit_mask = 128; \
+        bit_index = output_index; \
+        write_byte(0); \
+    } \
+    if (value > 0) { \
+        output_data[bit_index] |= bit_mask; \
+    } \
+    bit_mask >>= 1; \
+} while (0)
 
-static void write_byte(int value) {
-    output_data[output_index++] = value;
-    diff--;
-}
+#define write_elias_gamma(v) \
+do { \
+    int value = v; \
+    int j; \
+    for (j = 2; j <= value; j <<= 1) { \
+        write_bit(0); \
+    } \
+    while ((j >>= 1) > 0) { \
+        write_bit(value & j); \
+    } \
+} while (0)
 
-static void write_bit(int value) {
-    if (bit_mask == 0) {
-        bit_mask = 128;
-        bit_index = output_index;
-        write_byte(0);
-    }
-    if (value > 0) {
-        output_data[bit_index] |= bit_mask;
-    }
-    bit_mask >>= 1;
-}
-
-static void write_elias_gamma(int value) {
-    int i;
-
-    for (i = 2; i <= value; i <<= 1) {
-        write_bit(0);
-    }
-    while ((i >>= 1) > 0) {
-        write_bit(value & i);
-    }
-}
-
-unsigned char *zx7_compress(zx7_Optimal *optimal, unsigned char *input_data, size_t input_size, unsigned long skip, size_t *output_size, long *delta) {
+unsigned char *zx7_compress(zx7_Optimal *optimal, unsigned char *input_data, size_t input_size, unsigned long skip, size_t *output_size, long *delta)
+{
+    unsigned char *output_data;
+    size_t output_index;
     size_t input_index;
+    size_t bit_index;
+    int bit_mask;
     int offset1;
     int mask;
     int i;
+    long diff;
 
     /* calculate and allocate output buffer */
     input_index = input_size-1;
@@ -99,7 +105,7 @@ unsigned char *zx7_compress(zx7_Optimal *optimal, unsigned char *input_data, siz
 
     /* first byte is always literal */
     write_byte(input_data[input_index]);
-    read_bytes(1, delta);
+    read_bytes(1, *delta);
 
     /* process remaining bytes */
     while ((input_index = optimal[input_index].bits) > 0) {
@@ -110,7 +116,7 @@ unsigned char *zx7_compress(zx7_Optimal *optimal, unsigned char *input_data, siz
 
             /* literal value */
             write_byte(input_data[input_index]);
-            read_bytes(1, delta);
+            read_bytes(1, *delta);
 
         } else {
 
@@ -131,7 +137,7 @@ unsigned char *zx7_compress(zx7_Optimal *optimal, unsigned char *input_data, siz
                     write_bit(offset1 & mask);
                 }
             }
-            read_bytes(optimal[input_index].len, delta);
+            read_bytes(optimal[input_index].len, *delta);
         }
     }
 

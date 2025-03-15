@@ -23,21 +23,19 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "zx7.h"
+
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <limits.h>
-
-#include "zx7.h"
 
 static int count_bits(int offset, int len) {
     return (((sizeof(int)*CHAR_BIT+4) - __builtin_clz(len-1)) << 1) + ((128 - offset) >> (sizeof(int)*CHAR_BIT-1) & 4);
 }
 
 zx7_Optimal* zx7_optimize(unsigned char *input_data, size_t input_size, unsigned long skip) {
-    static size_t min[MAX_OFFSET+1];
-    static size_t max[MAX_OFFSET+1];
-    static size_t matches[256*256];
+    size_t min[MAX_OFFSET+1];
+    size_t max[MAX_OFFSET+1];
+    size_t matches[256*256];
     size_t *match_slots = NULL;
     zx7_Optimal *optimal = NULL;
     size_t *match;

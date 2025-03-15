@@ -26,6 +26,9 @@
 #ifndef ZX7_H
 #define ZX7_H
 
+#include <string.h>
+#include <limits.h>
+
 #define MAX_OFFSET  2176  /* range 1..2176 */
 #define MAX_LEN    65536  /* range 2..65536 */
 
