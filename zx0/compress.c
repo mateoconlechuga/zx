@@ -267,9 +267,9 @@ do { \
 
 #define write_bit(v) \
 do { \
-    int value = v; \
+    int v0 = v; \
     if (backtrack) { \
-        if (value && output_index) \
+        if (v0 && output_index) \
             output_data[output_index-1] |= 1; \
         backtrack = 0; \
     } else { \
@@ -278,7 +278,7 @@ do { \
             bit_index = output_index; \
             write_byte(0); \
         } \
-        if (value) \
+        if (v0) \
             output_data[bit_index] |= bit_mask; \
         bit_mask >>= 1; \
     } \
@@ -286,13 +286,13 @@ do { \
 
 #define write_interlaced_elias_gamma(v, backwards_mode, invert_mode) \
 do { \
-    int value = v; \
+    int v1 = v; \
     int i = 2; \
-    for (; i <= value; i <<= 1) \
+    for (; i <= v1; i <<= 1) \
         ; \
     i >>= 1; \
     while (i >>= 1) { \
-        int nb = value & i; \
+        int nb = v1 & i; \
         write_bit(backwards_mode); \
         write_bit(invert_mode ? !nb : nb); \
     } \

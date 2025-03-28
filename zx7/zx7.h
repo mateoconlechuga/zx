@@ -1,5 +1,6 @@
 /*
  * (c) Copyright 2012-2016 by Einar Saukas. All rights reserved.
+ * Copyright 2017-2025 Matt "MateoConLechuga" Waltz (multithread support)
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -26,20 +27,6 @@
 #ifndef ZX7_H
 #define ZX7_H
 
-#include <string.h>
-#include <limits.h>
-
-#define MAX_OFFSET  2176  /* range 1..2176 */
-#define MAX_LEN    65536  /* range 2..65536 */
-
-typedef struct zx7_optimal_t {
-    size_t bits;
-    int offset;
-    int len;
-} zx7_Optimal;
-
-zx7_Optimal *zx7_optimize(unsigned char *input_data, size_t input_size, unsigned long skip);
-
-unsigned char *zx7_compress(zx7_Optimal *optimal, unsigned char *input_data, size_t input_size, unsigned long skip, size_t *output_size, long *delta);
+unsigned char *zx7_compress(unsigned char *input_data, int input_size, int skip, int *output_size, long *delta);
 
 #endif
