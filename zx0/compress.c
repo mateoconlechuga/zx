@@ -32,7 +32,7 @@
 #define MAX_SCALE 10
 #define INITIAL_OFFSET 1
 #define ZX0_MAX_OFFSET 32640
-#define MAX_ALLOCS 50000
+#define MAX_ALLOCS 10000
 
 typedef struct zx0_block_t {
     struct zx0_block_t *chain;
@@ -106,9 +106,9 @@ static void zx0_assign(zx0_BLOCK **ptr, zx0_BLOCK *chain, zx0_BLOCK **ghost_root
 
 static zx0_BLOCK *zx0_optimize(unsigned char *input_data, int input_size, int skip, int offset_limit, void (*progress)(int), void *allocated_mem[MAX_ALLOCS], size_t *nr_allocs)
 {
-    zx0_BLOCK *last_literal[ZX0_MAX_OFFSET+1];
-    zx0_BLOCK *last_match[ZX0_MAX_OFFSET+1];
-    int match_length[ZX0_MAX_OFFSET+1];
+    zx0_BLOCK **last_literal;
+    zx0_BLOCK **last_match;
+    int *match_length;
     int best_length_size;
     int bits;
     int index;
@@ -124,13 +124,33 @@ static zx0_BLOCK *zx0_optimize(unsigned char *input_data, int input_size, int sk
     zx0_BLOCK *dead_array;
     int dead_array_size;
 
-    memset(last_literal, 0, sizeof last_literal);
-    memset(last_match, 0, sizeof last_match);
-    memset(match_length, 0, sizeof match_length);
-
     ghost_root = NULL;
     dead_array = NULL;
     dead_array_size = 0;
+
+    last_literal = calloc(ZX0_MAX_OFFSET+1, sizeof(zx0_BLOCK *));
+    if (last_literal == NULL)
+    {
+        goto fail;
+    }
+    allocated_mem[(*nr_allocs)] = last_literal;
+    (*nr_allocs)++;
+
+    last_match = calloc(ZX0_MAX_OFFSET+1, sizeof(zx0_BLOCK *));
+    if (last_match == NULL)
+    {
+        goto fail;
+    }
+    allocated_mem[(*nr_allocs)] = last_match;
+    (*nr_allocs)++;
+
+    match_length = calloc(ZX0_MAX_OFFSET+1, sizeof(int));
+    if (match_length == NULL)
+    {
+        goto fail;
+    }
+    allocated_mem[(*nr_allocs)] = match_length;
+    (*nr_allocs)++;
 
     best_length = malloc(input_size * sizeof(int));
     if (best_length == NULL)
@@ -304,9 +324,9 @@ do { \
 
 unsigned char *zx0_compress(unsigned char *input_data, int input_size, int skip, int backwards_mode, int invert_mode, int *output_size, int *delta, void (*progress)(int))
 {
-    void *allocated_mem[MAX_ALLOCS];
+    void **allocated_mem;
     size_t nr_allocs;
-    unsigned char *output_data;
+    unsigned char *output_data = NULL;
     int output_index;
     int input_index;
     int bit_index;
@@ -321,16 +341,24 @@ unsigned char *zx0_compress(unsigned char *input_data, int input_size, int skip,
 
     nr_allocs = 0;
 
+    allocated_mem = calloc(MAX_ALLOCS, sizeof(void *));
+    if (!allocated_mem)
+    {
+        goto fail;
+    }
+
     optimal = zx0_optimize(input_data, input_size, skip, ZX0_MAX_OFFSET, progress, allocated_mem, &nr_allocs);
-    if (!optimal) {
-        return NULL;
+    if (!optimal)
+    {
+        goto fail;
     }
 
     /* calculate and allocate output buffer */
     *output_size = (optimal->bits+25)/8;
     output_data = calloc(*output_size, sizeof(unsigned char));
-    if (!output_data) {
-        return NULL;
+    if (!output_data)
+    {
+        goto fail;
     }
 
     bit_index = 0;
@@ -402,10 +430,13 @@ unsigned char *zx0_compress(unsigned char *input_data, int input_size, int skip,
     write_bit(1);
     write_interlaced_elias_gamma(256, invert_mode);
 
+fail:
+
     for (size_t j = 0; j < nr_allocs; ++j) {
         free(allocated_mem[j]);
         allocated_mem[j] = NULL;
     }
+    free(allocated_mem);
 
     /* done! */
     return output_data;
