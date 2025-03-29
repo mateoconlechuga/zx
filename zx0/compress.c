@@ -28,14 +28,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdbool.h>
 
 #define MAX_SCALE 10
-#define QTY_BLOCKS 10000
-#define MAX_ALLOCS 4096
-
-#define ZX0_MAX_OFFSET 32640
 #define INITIAL_OFFSET 1
+#define ZX0_MAX_OFFSET 32640
+#define MAX_ALLOCS 50000
 
 typedef struct zx0_block_t {
     struct zx0_block_t *chain;
@@ -57,47 +54,46 @@ static int elias_gamma_bits(int value) {
     return bits;
 }
 
-static zx0_BLOCK *zx0_allocate(int bits,
-                               int index,
-                               int offset,
-                               zx0_BLOCK *chain,
-                               zx0_BLOCK **ghost_root,
-                               zx0_BLOCK **dead_array,
-                               int *dead_array_size,
-                               int *nr_allocs,
-                               void *allocs[MAX_ALLOCS]) {
-    zx0_BLOCK *ptr;
+#define QTY_BLOCKS 10000
 
-    if (*ghost_root) {
-        ptr = *ghost_root;
-        *ghost_root = ptr->ghost_chain;
-        if (ptr->chain && !--ptr->chain->references) {
-            ptr->chain->ghost_chain = *ghost_root;
-            *ghost_root = ptr->chain;
-        }
-    } else {
-        int size = *dead_array_size;
-        if ((size % QTY_BLOCKS) == 0)
-        {
-            *dead_array = calloc(QTY_BLOCKS, sizeof(zx0_BLOCK));
-            if (*dead_array == NULL) {
-                return NULL;
-            }
-            allocs[*nr_allocs] = *dead_array;
-            *nr_allocs = *nr_allocs + 1;
-        }
-        ptr = &(*dead_array)[size % QTY_BLOCKS];
-        *dead_array_size = size + 1;
-    }
-    ptr->bits = bits;
-    ptr->index = index;
-    ptr->offset = offset;
-    if (chain)
-        chain->references++;
-    ptr->chain = chain;
-    ptr->references = 0;
-    return ptr;
-}
+#define zx0_allocate(output, a, b, c, d) \
+do \
+{ \
+    zx0_BLOCK *next = d; \
+    zx0_BLOCK *ptr; \
+    if (ghost_root) { \
+        ptr = ghost_root; \
+        ghost_root = ptr->ghost_chain; \
+        if (ptr->chain && !--ptr->chain->references) { \
+            ptr->chain->ghost_chain = ghost_root; \
+            ghost_root = ptr->chain; \
+        } \
+    } else { \
+        if (!dead_array_size) { \
+            if ((*nr_allocs) == MAX_ALLOCS) { \
+                output = NULL; \
+                break; \
+            } \
+            dead_array = malloc(QTY_BLOCKS * sizeof(zx0_BLOCK)); \
+            if (dead_array == NULL) { \
+                output = NULL; \
+                break; \
+            } \
+            allocated_mem[(*nr_allocs)] = dead_array; \
+            (*nr_allocs)++; \
+            dead_array_size = QTY_BLOCKS; \
+        } \
+        ptr = &dead_array[--dead_array_size]; \
+    } \
+    ptr->bits = a; \
+    ptr->index = b; \
+    ptr->offset = c; \
+    if (next) \
+        next->references++; \
+    ptr->chain = next; \
+    ptr->references = 0; \
+    output = ptr; \
+} while (0)
 
 static void zx0_assign(zx0_BLOCK **ptr, zx0_BLOCK *chain, zx0_BLOCK **ghost_root) {
     chain->references++;
@@ -108,32 +104,25 @@ static void zx0_assign(zx0_BLOCK **ptr, zx0_BLOCK *chain, zx0_BLOCK **ghost_root
     *ptr = chain;
 }
 
-static bool zx0_optimize(zx0_BLOCK **opt,
-                         unsigned char *input_data,
-                         int input_size,
-                         int skip,
-                         int offset_limit,
-                         void (*progress)(int),
-                         int *nr_allocs,
-                         void *allocs[MAX_ALLOCS])
+static zx0_BLOCK *zx0_optimize(unsigned char *input_data, int input_size, int skip, int offset_limit, void (*progress)(int), void *allocated_mem[MAX_ALLOCS], size_t *nr_allocs)
 {
-    zx0_BLOCK **optimal;
     zx0_BLOCK *last_literal[ZX0_MAX_OFFSET+1];
     zx0_BLOCK *last_match[ZX0_MAX_OFFSET+1];
-    zx0_BLOCK *dead_array;
-    zx0_BLOCK *ghost_root;
     int match_length[ZX0_MAX_OFFSET+1];
     int best_length_size;
-    int dead_array_size;
     int bits;
     int index;
     int offset;
     int length;
     int bits2;
-    int max_offset;
-    int *best_length;
     int dots = 2;
-    zx0_BLOCK *ptr;
+    int max_offset;
+    zx0_BLOCK **optimal = NULL;
+    int *best_length = NULL;
+    zx0_BLOCK *chain;
+    zx0_BLOCK *ghost_root;
+    zx0_BLOCK *dead_array;
+    int dead_array_size;
 
     memset(last_literal, 0, sizeof last_literal);
     memset(last_match, 0, sizeof last_match);
@@ -143,17 +132,21 @@ static bool zx0_optimize(zx0_BLOCK **opt,
     dead_array = NULL;
     dead_array_size = 0;
 
-    best_length = calloc(input_size, sizeof(int));
+    best_length = malloc(input_size * sizeof(int));
     if (best_length == NULL)
     {
-        return false;
+        goto fail;
     }
+    allocated_mem[(*nr_allocs)] = best_length;
+    (*nr_allocs)++;
 
     optimal = calloc(input_size, sizeof(zx0_BLOCK *));
     if (optimal == NULL)
     {
-        return false;
+        goto fail;
     }
+    allocated_mem[(*nr_allocs)] = optimal;
+    (*nr_allocs)++;
 
     if (input_size > 2)
     {
@@ -166,8 +159,11 @@ static bool zx0_optimize(zx0_BLOCK **opt,
     }
 
     /* start with fake block */
-    ptr = zx0_allocate(-1, skip-1, INITIAL_OFFSET, NULL, &ghost_root, &dead_array, &dead_array_size, nr_allocs, allocs);
-    zx0_assign(&last_match[INITIAL_OFFSET], ptr, &ghost_root);
+    zx0_allocate(chain, -1, skip-1, INITIAL_OFFSET, NULL);
+    if (!chain) {
+        goto fail;   
+    }
+    zx0_assign(&last_match[INITIAL_OFFSET], chain, &ghost_root);
 
     if (progress)
     {
@@ -184,8 +180,11 @@ static bool zx0_optimize(zx0_BLOCK **opt,
                 if (last_literal[offset]) {
                     length = index-last_literal[offset]->index;
                     bits = last_literal[offset]->bits + 1 + elias_gamma_bits(length);
-                    ptr = zx0_allocate(bits, index, offset, last_literal[offset], &ghost_root, &dead_array, &dead_array_size, nr_allocs, allocs);
-                    zx0_assign(&last_match[offset], ptr, &ghost_root);
+                    zx0_allocate(chain, bits, index, offset, last_literal[offset]);
+                    if (!chain) {
+                        goto fail;
+                    }
+                    zx0_assign(&last_match[offset], chain, &ghost_root);
                     if (!optimal[index] || optimal[index]->bits > bits)
                         zx0_assign(&optimal[index], last_match[offset], &ghost_root);
                 }
@@ -207,8 +206,11 @@ static bool zx0_optimize(zx0_BLOCK **opt,
                     length = best_length[match_length[offset]];
                     bits = optimal[index-length]->bits + 8 + elias_gamma_bits((offset-1)/128+1) + elias_gamma_bits(length-1);
                     if (!last_match[offset] || last_match[offset]->index != index || last_match[offset]->bits > bits) {
-                        ptr = zx0_allocate(bits, index, offset, optimal[index-length], &ghost_root, &dead_array, &dead_array_size, nr_allocs, allocs);
-                        zx0_assign(&last_match[offset], ptr, &ghost_root);
+                        zx0_allocate(chain, bits, index, offset, optimal[index-length]);
+                        if (!chain) {
+                            goto fail;
+                        }
+                        zx0_assign(&last_match[offset], chain, &ghost_root);
                         if (!optimal[index] || optimal[index]->bits > bits)
                             zx0_assign(&optimal[index], last_match[offset], &ghost_root);
                     }
@@ -219,49 +221,52 @@ static bool zx0_optimize(zx0_BLOCK **opt,
                 if (last_match[offset]) {
                     length = index-last_match[offset]->index;
                     bits = last_match[offset]->bits + 1 + elias_gamma_bits(length) + length*8;
-                    ptr = zx0_allocate(bits, index, 0, last_match[offset], &ghost_root, &dead_array, &dead_array_size, nr_allocs, allocs);
-                    zx0_assign(&last_literal[offset], ptr, &ghost_root);
+                    zx0_allocate(chain, bits, index, 0, last_match[offset]);
+                    if (!chain) {
+                        goto fail;
+                    }
+                    zx0_assign(&last_literal[offset], chain, &ghost_root);
                     if (!optimal[index] || optimal[index]->bits > bits)
                         zx0_assign(&optimal[index], last_literal[offset], &ghost_root);
                 }
             }
         }
 
-         /* indicate progress */
-        if (progress)
+        if (progress && (((index * MAX_SCALE) / input_size) > dots))
         {
-            if (((index * MAX_SCALE) / input_size) > dots)
-            {
-                dots++;
-                progress(dots);
-            }
+            dots++;
+            progress(dots);
         }
     }
 
     if (progress)
     {
-        progress(MAX_SCALE);
+        progress(MAX_SCALE);    
     }
 
-    *opt = optimal[input_size-1];
+    return optimal[input_size-1];
 
-    free(optimal);
-    free(best_length);
-
-    return true;
+fail:
+    return NULL;
 }
 
-#define read_bytes(n, delta) \
+
+
+/* compression */
+
+
+
+#define read_bytes(n) \
 do { \
     input_index += n; \
     diff += n; \
-    if (delta < diff) \
-        delta = diff; \
+    if (*delta < diff) \
+        *delta = diff; \
 } while (0)
 
-#define write_byte(v) \
+#define write_byte(n) \
 do { \
-    output_data[output_index++] = (v); \
+    output_data[output_index++] = n; \
     diff--; \
 } while (0)
 
@@ -284,49 +289,42 @@ do { \
     } \
 } while (0)
 
-#define write_interlaced_elias_gamma(v, backwards_mode, invert_mode) \
+#define write_interlaced_elias_gamma(v, h) \
 do { \
     int v1 = v; \
-    int i = 2; \
-    for (; i <= v1; i <<= 1) \
-        ; \
+    int i; \
+    for (i = 2; i <= v1; i <<= 1); \
     i >>= 1; \
     while (i >>= 1) { \
-        int nb = v1 & i; \
         write_bit(backwards_mode); \
-        write_bit(invert_mode ? !nb : nb); \
+        write_bit((h) ? !(v1 & i) : (v1 & i)); \
     } \
-    write_bit(0); \
+    write_bit(!backwards_mode); \
 } while (0)
 
-unsigned char *zx0_compress(unsigned char *input_data,
-                            int input_size,
-                            int skip,
-                            int backwards_mode,
-                            int invert_mode,
-                            int *output_size,
-                            int *delta,
-                            void (*progress)(int))
+unsigned char *zx0_compress(unsigned char *input_data, int input_size, int skip, int backwards_mode, int invert_mode, int *output_size, int *delta, void (*progress)(int))
 {
-    void *allocs[MAX_ALLOCS];
-    int nr_allocs = 0;
+    void *allocated_mem[MAX_ALLOCS];
+    size_t nr_allocs;
     unsigned char *output_data;
-    zx0_BLOCK *prev;
-    zx0_BLOCK *next;
     int output_index;
     int input_index;
     int bit_index;
     int bit_mask;
     int diff;
     int backtrack;
-    int last_offset;
+    zx0_BLOCK *prev;
+    zx0_BLOCK *next;
+    int last_offset = INITIAL_OFFSET;
     int length;
-
     zx0_BLOCK *optimal;
-    if (!zx0_optimize(&optimal, input_data, input_size, skip, ZX0_MAX_OFFSET, progress, &nr_allocs, allocs)) {
+
+    nr_allocs = 0;
+
+    optimal = zx0_optimize(input_data, input_size, skip, ZX0_MAX_OFFSET, progress, allocated_mem, &nr_allocs);
+    if (!optimal) {
         return NULL;
     }
-    last_offset = INITIAL_OFFSET;
 
     /* calculate and allocate output buffer */
     *output_size = (optimal->bits+25)/8;
@@ -335,8 +333,11 @@ unsigned char *zx0_compress(unsigned char *input_data,
         return NULL;
     }
 
+    bit_index = 0;
+
     /* un-reverse optimal sequence */
     prev = NULL;
+    next = NULL;
     while (optimal) {
         next = optimal->chain;
         optimal->chain = prev;
@@ -344,7 +345,8 @@ unsigned char *zx0_compress(unsigned char *input_data,
         optimal = next;
     }
 
-    diff = *output_size - input_size + skip;
+    /* initialize data */
+    diff = *output_size-input_size+skip;
     *delta = 0;
     input_index = skip;
     output_index = 0;
@@ -360,26 +362,26 @@ unsigned char *zx0_compress(unsigned char *input_data,
             write_bit(0);
 
             /* copy literals length */
-            write_interlaced_elias_gamma(length, backwards_mode, 0);
+            write_interlaced_elias_gamma(length, 0);
 
             /* copy literals values */
             for (int j = 0; j < length; j++) {
                 write_byte(input_data[input_index]);
-                read_bytes(1, *delta);
+                read_bytes(1);
             }
         } else if (optimal->offset == last_offset) {
             /* copy from last offset indicator */
             write_bit(0);
 
             /* copy from last offset length */
-            write_interlaced_elias_gamma(length, backwards_mode, 0);
-            read_bytes(length, *delta);
+            write_interlaced_elias_gamma(length, 0);
+            read_bytes(length);
         } else {
             /* copy from new offset indicator */
             write_bit(1);
 
             /* copy from new offset MSB */
-            write_interlaced_elias_gamma((optimal->offset-1)/128+1, backwards_mode, invert_mode);
+            write_interlaced_elias_gamma((optimal->offset-1)/128+1, invert_mode);
 
             /* copy from new offset LSB */
             if (backwards_mode)
@@ -389,8 +391,8 @@ unsigned char *zx0_compress(unsigned char *input_data,
 
             /* copy from new offset length */
             backtrack = 1;
-            write_interlaced_elias_gamma(length-1, backwards_mode, 0);
-            read_bytes(length, *delta);
+            write_interlaced_elias_gamma(length-1, 0);
+            read_bytes(length);
 
             last_offset = optimal->offset;
         }
@@ -398,11 +400,11 @@ unsigned char *zx0_compress(unsigned char *input_data,
 
     /* end marker */
     write_bit(1);
-    write_interlaced_elias_gamma(256, backwards_mode, invert_mode);
+    write_interlaced_elias_gamma(256, invert_mode);
 
-    for (int i = 0; i < nr_allocs; ++i)
-    {
-        free(allocs[i]);
+    for (size_t j = 0; j < nr_allocs; ++j) {
+        free(allocated_mem[j]);
+        allocated_mem[j] = NULL;
     }
 
     /* done! */
