@@ -104,8 +104,15 @@ static void zx0_assign(zx0_BLOCK **ptr, zx0_BLOCK *chain, zx0_BLOCK **ghost_root
     *ptr = chain;
 }
 
-static zx0_BLOCK *zx0_optimize(unsigned char *input_data, int input_size, int skip, int offset_limit, void (*progress)(int), void *allocated_mem[MAX_ALLOCS], size_t *nr_allocs)
-{
+static zx0_BLOCK *zx0_optimize(
+    const unsigned char *__restrict input_data,
+    int input_size,
+    int skip,
+    int offset_limit,
+    void (*progress)(int),
+    void *allocated_mem[MAX_ALLOCS],
+    size_t *__restrict nr_allocs
+) {
     zx0_BLOCK **last_literal;
     zx0_BLOCK **last_match;
     int *match_length;
@@ -181,7 +188,7 @@ static zx0_BLOCK *zx0_optimize(unsigned char *input_data, int input_size, int sk
     /* start with fake block */
     zx0_allocate(chain, -1, skip-1, INITIAL_OFFSET, NULL);
     if (!chain) {
-        goto fail;   
+        goto fail;
     }
     zx0_assign(&last_match[INITIAL_OFFSET], chain, &ghost_root);
 
@@ -261,7 +268,7 @@ static zx0_BLOCK *zx0_optimize(unsigned char *input_data, int input_size, int sk
 
     if (progress)
     {
-        progress(MAX_SCALE);    
+        progress(MAX_SCALE);
     }
 
     return optimal[input_size-1];
@@ -322,8 +329,16 @@ do { \
     write_bit(!backwards_mode); \
 } while (0)
 
-unsigned char *zx0_compress(unsigned char *input_data, int input_size, int skip, int backwards_mode, int invert_mode, int *output_size, int *delta, void (*progress)(int))
-{
+unsigned char *zx0_compress(
+    const unsigned char *__restrict input_data,
+    int input_size,
+    int skip,
+    int backwards_mode,
+    int invert_mode,
+    int *__restrict output_size,
+    int *__restrict delta,
+    void (*progress)(int)
+) {
     void **allocated_mem;
     size_t nr_allocs;
     unsigned char *output_data = NULL;

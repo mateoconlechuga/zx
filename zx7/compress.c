@@ -44,7 +44,11 @@ static int count_bits(int offset, int len) {
     return (((sizeof(int)*CHAR_BIT+4) - __builtin_clz(len-1)) << 1) + ((128 - offset) >> (sizeof(int)*CHAR_BIT-1) & 4);
 }
 
-static zx7_Optimal *zx7_optimize(unsigned char *input_data, int input_size, int skip) {
+static zx7_Optimal *zx7_optimize(
+    const unsigned char *__restrict input_data,
+    int input_size,
+    int skip
+) {
     int min[MAX_OFFSET+1];
     int max[MAX_OFFSET+1];
     int matches[256*256];
@@ -167,8 +171,13 @@ do { \
     } \
 } while (0)
 
-unsigned char *zx7_compress(unsigned char *input_data, int input_size, int skip, int *output_size, long *delta)
-{
+unsigned char *zx7_compress(
+    const unsigned char *__restrict input_data,
+    int input_size,
+    int skip,
+    int *__restrict output_size,
+    long *__restrict delta
+) {
     zx7_Optimal *optimal;
     unsigned char *output_data;
     int output_index;

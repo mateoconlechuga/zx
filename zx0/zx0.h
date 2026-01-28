@@ -26,6 +26,15 @@
 #ifndef ZX0_H
 #define ZX0_H
 
-unsigned char *zx0_compress(unsigned char *input_data, int input_size, int skip, int backwards_mode, int invert_mode, int *output_size, int *delta, void (*progress)(int));
+unsigned char *zx0_compress(
+    const unsigned char *__restrict input_data,
+    int input_size,
+    int skip,
+    int backwards_mode,
+    int invert_mode,
+    int *__restrict output_size,
+    int *__restrict delta,
+    void (*progress)(int)
+);
 
 #endif
