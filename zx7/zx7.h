@@ -27,6 +27,6 @@
 #ifndef ZX7_H
 #define ZX7_H
 
-unsigned char *zx7_compress(unsigned char *input_data, int input_size, int skip, int *output_size, long *delta);
+unsigned char *zx7_compress(const unsigned char *input_data, int input_size, int skip, int *output_size, long *delta);
 
 #endif
